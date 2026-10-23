@@ -71,4 +71,4 @@ foreach (glob($dataDir . '/*.geojson') as $file) {
     echo sprintf("%s: %d parcel\n", $ku, count($geo['features']));
 }
 
-echo "Готово: " . $dbPath . "\n";
+echo "Připraveno: " . $dbPath . "\n";
