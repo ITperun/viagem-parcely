@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Viagem – parcely</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const DATA_DIR = '/data/';
+    const TERRITORIES = [
+      { ku: '659541', name: 'Jičín',     color: '#e74c3c' },
+      { ku: '681679', name: 'Libáň',     color: '#27ae60' },
+      { ku: '705128', name: 'Nová Paka', color: '#2980b9' },
+      { ku: '752096', name: 'Sobotka',   color: '#8e44ad' }
+    ];
+
+    const map = L.map('map', { preferCanvas: true }).setView([50.467, 15.172], 12);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const renderer = L.canvas({ padding: 0.5 });
+    const bounds = L.latLngBounds([]);
+
+    TERRITORIES.forEach(({ ku, name, color }) => {
+      fetch(`${DATA_DIR}${ku}.geojson`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Nelze načíst ${ku}.geojson: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          const layer = L.geoJSON(data, {
+            renderer,
+            style: { color, weight: 1.5, fillOpacity: 0.22 },
+            onEachFeature: (feature, l) => {
+              const p = feature.properties || {};
+              l.bindPopup(
+                `Parcela ${p.label || '—'}<br>` +
+                `Výměra: ${p.areaValue ?? '—'} m²<br>` +
+                `KÚ: ${p.nationalCadastralReference || '—'}`
+              );
+            }
+          }).addTo(map);
+
+          const layerBounds = layer.getBounds();
+          if (layerBounds.isValid()) {
+            bounds.extend(layerBounds);
+            map.fitBounds(bounds, { padding: [24, 24] });
+          }
+        })
+        .catch(error => console.error(`[${name}]`, error));
+    });
+  </script>
+</body>
+</html>
