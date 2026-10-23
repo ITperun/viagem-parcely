@@ -6,23 +6,43 @@
   <title>Viagem – parcely</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html, body, #map { height: 100%; margin: 0; }
+    html, body, #map { height: 100%; margin: 0; font-family: sans-serif; }
+
+    #panel {
+      position: absolute; top: 10px; right: 10px; z-index: 1000;
+      background: #fff; padding: 10px; border-radius: 6px; width: 180px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    }
+    #panel h3 { margin: 0 0 6px; font-size: 15px; }
+    #panel button {
+      display: block; width: 100%; margin: 4px 0; padding: 6px 8px;
+      border: 1px solid #ccc; border-radius: 4px; background: #f7f7f7;
+      cursor: pointer; text-align: left; font-size: 14px;
+    }
+    #panel button:hover { background: #eee; }
+
     #notice {
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
       background: #fff; padding: 8px 14px; border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.3); font: 14px sans-serif;
+      box-shadow: 0 1px 4px rgba(0,0,0,.3); font-size: 14px;
       z-index: 1000; display: none;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="panel">
+    <h3>Území</h3>
+    <button id="btn-all">Celý okres</button>
+    <div id="territory-buttons"></div>
+  </div>
   <div id="notice"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     // Ниже этого масштаба парцелы не запрашиваются
     const MIN_PARCEL_ZOOM = 14;
+    const MIN_ZOOM = 9;
 
     const NAMES = {
       '659541': 'Jičín',
@@ -37,14 +57,21 @@
       '752096': '#8e44ad'
     };
 
-    const map = L.map('map', { preferCanvas: true }).setView([50.467, 15.172], 11);
+    const map = L.map('map', {
+      preferCanvas: true,
+      minZoom: MIN_ZOOM,
+      zoomSnap: 0.5
+    }).setView([50.467, 15.172], 11);
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
+      attribution: '© OpenStreetMap',
+      noWrap: true
     }).addTo(map);
 
     const renderer = L.canvas({ padding: 0.5 });
     const notice = document.getElementById('notice');
+    const territoryLayer = L.layerGroup();
+    let allBounds = null;
 
     // Слой парцел
     const parcelLayer = L.geoJSON(null, {
@@ -60,25 +87,47 @@
       }
     }).addTo(map);
 
-    // Слой территорий: рамки с названиями видны при отдалении
-    const territoryLayer = L.layerGroup();
+    function goTo(bounds) {
+      map.fitBounds(bounds, { padding: [24, 24] });
+    }
 
+    // Территории: точка в центре и кнопка на панели
     fetch('api/territories.php')
       .then(r => r.json())
       .then(rows => {
+        const container = document.getElementById('territory-buttons');
+
         rows.forEach(t => {
           const name = NAMES[t.ku] || t.ku;
-          const rect = L.rectangle(
-            [[t.min_lat, t.min_lng], [t.max_lat, t.max_lng]],
-            { color: COLORS[t.ku] || '#333', weight: 2, fillOpacity: 0.1 }
-          );
-          rect.bindTooltip(`${name}: ${t.parcels} parcel`, { permanent: true, direction: 'center' });
-          rect.on('click', () => map.fitBounds(rect.getBounds()));
-          territoryLayer.addLayer(rect);
+          const color = COLORS[t.ku] || '#333';
+          const bounds = [[t.min_lat, t.min_lng], [t.max_lat, t.max_lng]];
+          const center = [(t.min_lat + t.max_lat) / 2, (t.min_lng + t.max_lng) / 2];
+
+          const marker = L.circleMarker(center, {
+            radius: 9, color, fillColor: color, fillOpacity: 0.7, weight: 2
+          }).bindTooltip(`${name} (${t.parcels} parcel)`);
+          marker.on('click', () => goTo(bounds));
+          territoryLayer.addLayer(marker);
+
+          const btn = document.createElement('button');
+          btn.textContent = name;
+          btn.addEventListener('click', () => goTo(bounds));
+          container.appendChild(btn);
+
+          allBounds = allBounds
+            ? allBounds.extend(bounds)
+            : L.latLngBounds(bounds);
         });
+
+        // Ограничиваем карту областью территорий, чтобы не уходить в пустой мир
+        map.setMaxBounds(allBounds.pad(0.3));
         updateByZoom();
       })
       .catch(err => console.error(err));
+
+    document.getElementById('btn-all').addEventListener('click', () => {
+      if (allBounds) goTo(allBounds);
+    });
 
     let controller = null;
     let timer = null;
@@ -120,7 +169,7 @@
         });
     }
 
-    // Переключение между территориями и парцелами по масштабу
+    // При отдалении показываем точки территорий, при приближении — парцелы
     function updateByZoom() {
       if (map.getZoom() < MIN_PARCEL_ZOOM) {
         if (!map.hasLayer(territoryLayer)) territoryLayer.addTo(map);
