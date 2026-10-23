@@ -7,21 +7,20 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     html, body, #map { height: 100%; margin: 0; }
+    #notice {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #fff; padding: 8px 14px; border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.3); font: 14px sans-serif;
+      z-index: 1000; display: none;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="notice">Příliš mnoho parcel. Přibližte mapu.</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const DATA_DIR = '/data/';
-    const TERRITORIES = [
-      { ku: '659541', name: 'Jičín',     color: '#e74c3c' },
-      { ku: '681679', name: 'Libáň',     color: '#27ae60' },
-      { ku: '705128', name: 'Nová Paka', color: '#2980b9' },
-      { ku: '752096', name: 'Sobotka',   color: '#8e44ad' }
-    ];
-
     const map = L.map('map', { preferCanvas: true }).setView([50.467, 15.172], 12);
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -29,38 +28,59 @@
     }).addTo(map);
 
     const renderer = L.canvas({ padding: 0.5 });
-    const bounds = L.latLngBounds([]);
+    const parcelLayer = L.geoJSON(null, {
+      renderer,
+      style: { color: '#d33', weight: 1, fillOpacity: 0.2 },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        layer.bindPopup(
+          `Parcela ${p.label || '—'}<br>` +
+          `Výměra: ${p.areaValue ?? '—'} m²<br>` +
+          `KÚ: ${p.nationalCadastralReference || '—'}`
+        );
+      }
+    }).addTo(map);
 
-    TERRITORIES.forEach(({ ku, name, color }) => {
-      fetch(`${DATA_DIR}${ku}.geojson`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Nelze načíst ${ku}.geojson: ${response.status}`);
-          }
-          return response.json();
+    const notice = document.getElementById('notice');
+    let controller = null;
+    let timer = null;
+
+    function loadParcels() {
+      // Отменяем предыдущий запрос, если пользователь уже сдвинул карту
+      if (controller) controller.abort();
+      controller = new AbortController();
+
+      const b = map.getBounds();
+      const params = new URLSearchParams({
+        minLng: b.getWest(),
+        minLat: b.getSouth(),
+        maxLng: b.getEast(),
+        maxLat: b.getNorth()
+      });
+
+      fetch(`api/parcels.php?${params}`, { signal: controller.signal })
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
         })
         .then(data => {
-          const layer = L.geoJSON(data, {
-            renderer,
-            style: { color, weight: 1.5, fillOpacity: 0.22 },
-            onEachFeature: (feature, l) => {
-              const p = feature.properties || {};
-              l.bindPopup(
-                `Parcela ${p.label || '—'}<br>` +
-                `Výměra: ${p.areaValue ?? '—'} m²<br>` +
-                `KÚ: ${p.nationalCadastralReference || '—'}`
-              );
-            }
-          }).addTo(map);
-
-          const layerBounds = layer.getBounds();
-          if (layerBounds.isValid()) {
-            bounds.extend(layerBounds);
-            map.fitBounds(bounds, { padding: [24, 24] });
-          }
+          parcelLayer.clearLayers();
+          parcelLayer.addData(data);
+          notice.style.display = data.truncated ? 'block' : 'none';
         })
-        .catch(error => console.error(`[${name}]`, error));
-    });
+        .catch(err => {
+          if (err.name !== 'AbortError') console.error(err);
+        });
+    }
+
+    // Debounce: запрос уходит через 300 мс после окончания движения
+    function scheduleLoad() {
+      clearTimeout(timer);
+      timer = setTimeout(loadParcels, 300);
+    }
+
+    map.on('moveend', scheduleLoad);
+    loadParcels();
   </script>
 </body>
 </html>
