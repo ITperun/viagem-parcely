@@ -54,9 +54,14 @@ $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $truncated = count($rows) > LIMIT;
 
-// 4. Собираем GeoJSON. Геометрия уже хранится как JSON-строка.
+// Если парцел слишком много, не отдаём неполный набор, а только сообщаем об этом
+if ($truncated) {
+    echo '{"type":"FeatureCollection","truncated":true,"features":[]}';
+    exit;
+}
+
 $features = [];
-foreach (array_slice($rows, 0, LIMIT) as $row) {
+foreach ($rows as $row) {
     $properties = json_encode([
         'id'                         => $row['id'],
         'label'                      => $row['label'],
@@ -68,5 +73,4 @@ foreach (array_slice($rows, 0, LIMIT) as $row) {
         . ',"geometry":' . $row['geometry'] . '}';
 }
 
-echo '{"type":"FeatureCollection","truncated":' . ($truncated ? 'true' : 'false')
-    . ',"features":[' . implode(',', $features) . ']}';
+echo '{"type":"FeatureCollection","truncated":false,"features":[' . implode(',', $features) . ']}';

@@ -17,17 +17,36 @@
 </head>
 <body>
   <div id="map"></div>
-  <div id="notice">Příliš mnoho parcel. Přibližte mapu.</div>
+  <div id="notice"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map', { preferCanvas: true }).setView([50.467, 15.172], 12);
+    // Ниже этого масштаба парцелы не запрашиваются
+    const MIN_PARCEL_ZOOM = 14;
+
+    const NAMES = {
+      '659541': 'Jičín',
+      '681679': 'Libáň',
+      '705128': 'Nová Paka',
+      '752096': 'Sobotka'
+    };
+    const COLORS = {
+      '659541': '#e74c3c',
+      '681679': '#27ae60',
+      '705128': '#2980b9',
+      '752096': '#8e44ad'
+    };
+
+    const map = L.map('map', { preferCanvas: true }).setView([50.467, 15.172], 11);
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
     const renderer = L.canvas({ padding: 0.5 });
+    const notice = document.getElementById('notice');
+
+    // Слой парцел
     const parcelLayer = L.geoJSON(null, {
       renderer,
       style: { color: '#d33', weight: 1, fillOpacity: 0.2 },
@@ -41,12 +60,35 @@
       }
     }).addTo(map);
 
-    const notice = document.getElementById('notice');
+    // Слой территорий: рамки с названиями видны при отдалении
+    const territoryLayer = L.layerGroup();
+
+    fetch('api/territories.php')
+      .then(r => r.json())
+      .then(rows => {
+        rows.forEach(t => {
+          const name = NAMES[t.ku] || t.ku;
+          const rect = L.rectangle(
+            [[t.min_lat, t.min_lng], [t.max_lat, t.max_lng]],
+            { color: COLORS[t.ku] || '#333', weight: 2, fillOpacity: 0.1 }
+          );
+          rect.bindTooltip(`${name}: ${t.parcels} parcel`, { permanent: true, direction: 'center' });
+          rect.on('click', () => map.fitBounds(rect.getBounds()));
+          territoryLayer.addLayer(rect);
+        });
+        updateByZoom();
+      })
+      .catch(err => console.error(err));
+
     let controller = null;
     let timer = null;
 
     function loadParcels() {
-      // Отменяем предыдущий запрос, если пользователь уже сдвинул карту
+      if (map.getZoom() < MIN_PARCEL_ZOOM) {
+        parcelLayer.clearLayers();
+        return;
+      }
+
       if (controller) controller.abort();
       controller = new AbortController();
 
@@ -65,21 +107,38 @@
         })
         .then(data => {
           parcelLayer.clearLayers();
-          parcelLayer.addData(data);
-          notice.style.display = data.truncated ? 'block' : 'none';
+          if (data.truncated) {
+            notice.textContent = 'Příliš mnoho parcel. Přibližte mapu.';
+            notice.style.display = 'block';
+          } else {
+            notice.style.display = 'none';
+            parcelLayer.addData(data);
+          }
         })
         .catch(err => {
           if (err.name !== 'AbortError') console.error(err);
         });
     }
 
-    // Debounce: запрос уходит через 300 мс после окончания движения
-    function scheduleLoad() {
+    // Переключение между территориями и парцелами по масштабу
+    function updateByZoom() {
+      if (map.getZoom() < MIN_PARCEL_ZOOM) {
+        if (!map.hasLayer(territoryLayer)) territoryLayer.addTo(map);
+        notice.textContent = 'Přibližte mapu, abyste viděli parcely.';
+        notice.style.display = 'block';
+      } else {
+        if (map.hasLayer(territoryLayer)) map.removeLayer(territoryLayer);
+        notice.style.display = 'none';
+      }
+    }
+
+    function onMove() {
+      updateByZoom();
       clearTimeout(timer);
       timer = setTimeout(loadParcels, 300);
     }
 
-    map.on('moveend', scheduleLoad);
+    map.on('moveend', onMove);
     loadParcels();
   </script>
 </body>
