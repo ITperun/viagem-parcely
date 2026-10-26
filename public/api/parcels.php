@@ -24,7 +24,7 @@ if ($bbox['minLng'] > $bbox['maxLng'] || $bbox['minLat'] > $bbox['maxLat']) {
 }
 
 // 2. Ограничение объема ответа
-const LIMIT = 3000;
+const LIMIT = 2000;
 
 $dbPath = dirname(__DIR__, 2) . '/data/parcels.sqlite';
 if (!is_file($dbPath)) {

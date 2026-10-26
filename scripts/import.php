@@ -46,15 +46,25 @@ function extendBbox(array $coords, array &$b): void
     }
 }
 
+// Округление координаты до 6 знаков, сильно уменьшая размер ответного GeoJSON. Рекурсивно обходит массив координат любой геометрии.
+function roundCoords(array $coords, int $precision = 6): array
+{
+    if (is_numeric($coords[0])) {
+        return [round($coords[0], $precision), round($coords[1], $precision)];
+    }
+    return array_map(fn($c) => roundCoords($c, $precision), $coords);
+}
+
 foreach (glob($dataDir . '/*.geojson') as $file) {
     $ku  = basename($file, '.geojson');
     $geo = json_decode((string) file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
 
     $pdo->beginTransaction();
-    foreach ($geo['features'] as $f) {
+        foreach ($geo['features'] as $f) {
         $p = $f['properties'];
         $b = [INF, INF, -INF, -INF];
         extendBbox($f['geometry']['coordinates'], $b);
+        $f['geometry']['coordinates'] = roundCoords($f['geometry']['coordinates']);
 
         $insert->execute([
             $p['gml_id'],
