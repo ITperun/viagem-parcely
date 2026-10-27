@@ -1,41 +1,38 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . '/src/Response.php';
+require_once dirname(__DIR__, 2) . '/src/Database.php';
+
+use Viagem\Response;
+use Viagem\Database;
+
 header('Content-Type: application/geo+json; charset=utf-8');
 
-function fail(int $code, string $message): never
-{
-    http_response_code($code);
-    echo json_encode(['error' => $message], JSON_UNESCAPED_UNICODE);
-    exit;
-}
+const LIMIT = 2000;
 
 // 1. Читаем и проверяем границы карты
 $bbox = [];
 foreach (['minLng', 'minLat', 'maxLng', 'maxLat'] as $key) {
     if (!isset($_GET[$key]) || !is_numeric($_GET[$key])) {
-        fail(400, "Parametr $key chybí nebo není číslo");
+        Response::error(400, "Parametr $key chybí nebo není číslo");
     }
     $bbox[$key] = (float) $_GET[$key];
 }
 
 if ($bbox['minLng'] > $bbox['maxLng'] || $bbox['minLat'] > $bbox['maxLat']) {
-    fail(400, 'Neplatné hranice: min je větší než max');
+    Response::error(400, 'Neplatné hranice: min je větší než max');
 }
 
-// 2. Ограничение объема ответа
-const LIMIT = 2000;
-
-require_once dirname(__DIR__, 2) . '/src/Database.php';
-
+// 2. Подключаемся к базе
 try {
-    $pdo = \Viagem\Database::connect();
+    $pdo = Database::connect();
 } catch (\RuntimeException $e) {
-    fail(500, $e->getMessage());
+    Response::error(500, $e->getMessage());
 }
 
-// 3. Выбираем парцелы, bbox которых пересекает экран
-// Пересечение двух прямоугольников: min одного <= max другого и наоборот
+// 3. Выбираем парцелы, bbox которых пересекает экран.
+// Пересечение двух прямоугольников: min одного <= max другого и наоборот.
 $stmt = $pdo->prepare('
     SELECT id, label, area, national_ref, geometry
     FROM parcels
@@ -59,6 +56,7 @@ if ($truncated) {
     exit;
 }
 
+// 4. Собираем GeoJSON. Геометрия уже хранится как JSON-строка.
 $features = [];
 foreach ($rows as $row) {
     $properties = json_encode([

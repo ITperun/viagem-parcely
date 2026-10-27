@@ -4,13 +4,14 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 
 require_once dirname(__DIR__, 2) . '/src/Database.php';
+require_once dirname(__DIR__, 2) . '/src/Response.php';
+
+use Viagem\Response;
 
 try {
     $pdo = \Viagem\Database::connect();
 } catch (\RuntimeException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
-    exit;
+    Response::error(500, $e->getMessage());
 }
 
 $rows = $pdo->query('
