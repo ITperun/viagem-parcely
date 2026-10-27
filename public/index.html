@@ -73,6 +73,14 @@
     const territoryLayer = L.layerGroup();
     let allBounds = null;
 
+    // Ошибка, которая не должна скрываться подсказками про zoom
+    let dataError = null;
+
+    function showNotice(text) {
+      notice.textContent = text;
+      notice.style.display = 'block';
+    }
+
     // Слой парцел
     const parcelLayer = L.geoJSON(null, {
       renderer,
@@ -93,7 +101,10 @@
 
     // Территории: точка в центре и кнопка на панели
     fetch('api/territories.php')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(rows => {
         const container = document.getElementById('territory-buttons');
 
@@ -123,7 +134,11 @@
         map.setMaxBounds(allBounds.pad(0.3));
         updateByZoom();
       })
-      .catch(err => console.error(err));
+      .catch(err => {
+        console.error(err);
+        dataError = 'Data nejsou dostupná. Spusťte scripts/import.php.';
+        showNotice(dataError);
+      });
 
     document.getElementById('btn-all').addEventListener('click', () => {
       if (allBounds) goTo(allBounds);
@@ -155,26 +170,33 @@
           return r.json();
         })
         .then(data => {
+          dataError = null;
           parcelLayer.clearLayers();
           if (data.truncated) {
-            notice.textContent = 'Příliš mnoho parcel. Přibližte mapu.';
-            notice.style.display = 'block';
+            showNotice('Příliš mnoho parcel. Přibližte mapu.');
           } else {
             notice.style.display = 'none';
             parcelLayer.addData(data);
           }
         })
         .catch(err => {
-          if (err.name !== 'AbortError') console.error(err);
+          if (err.name === 'AbortError') return;
+          console.error(err);
+          dataError = 'Parcely se nepodařilo načíst. Spusťte scripts/import.php.';
+          showNotice(dataError);
         });
     }
 
     // При отдалении показываем точки территорий, при приближении — парцелы
     function updateByZoom() {
+      if (dataError) {
+        showNotice(dataError);
+        return;
+      }
+
       if (map.getZoom() < MIN_PARCEL_ZOOM) {
         if (!map.hasLayer(territoryLayer)) territoryLayer.addTo(map);
-        notice.textContent = 'Přibližte mapu, abyste viděli parcely.';
-        notice.style.display = 'block';
+        showNotice('Přibližte mapu, abyste viděli parcely.');
       } else {
         if (map.hasLayer(territoryLayer)) map.removeLayer(territoryLayer);
         notice.style.display = 'none';

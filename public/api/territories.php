@@ -3,9 +3,15 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-$pdo = new PDO('sqlite:' . dirname(__DIR__, 2) . '/data/parcels.sqlite', null, null, [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-]);
+require_once dirname(__DIR__, 2) . '/src/Database.php';
+
+try {
+    $pdo = \Viagem\Database::connect();
+} catch (\RuntimeException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 $rows = $pdo->query('
     SELECT ku,

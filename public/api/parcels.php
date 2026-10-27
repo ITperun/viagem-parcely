@@ -26,14 +26,13 @@ if ($bbox['minLng'] > $bbox['maxLng'] || $bbox['minLat'] > $bbox['maxLat']) {
 // 2. Ограничение объема ответа
 const LIMIT = 2000;
 
-$dbPath = dirname(__DIR__, 2) . '/data/parcels.sqlite';
-if (!is_file($dbPath)) {
-    fail(500, 'Databáze není připravena, spusťte scripts/import.php');
-}
+require_once dirname(__DIR__, 2) . '/src/Database.php';
 
-$pdo = new PDO('sqlite:' . $dbPath, null, null, [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-]);
+try {
+    $pdo = \Viagem\Database::connect();
+} catch (\RuntimeException $e) {
+    fail(500, $e->getMessage());
+}
 
 // 3. Выбираем парцелы, bbox которых пересекает экран
 // Пересечение двух прямоугольников: min одного <= max другого и наоборот
