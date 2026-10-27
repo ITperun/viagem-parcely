@@ -78,7 +78,7 @@ Data se čtou z SQLite. Frontend nikdy nedostane celý dataset najednou.
 | Stav | Největší odpověď `parcels.php` | Poznámka |
 |---|---|---|
 | Bez zaokrouhlení, LIMIT 3000 | 2 076 KB | lagy při přiblížení |
-| Zaokrouhlení na 6 míst, LIMIT 2000 | 963 KB | lagy zmizelí (subjektivně) |
+| Zaokrouhlení na 6 míst, LIMIT 2000 | 872 KB | odezva serveru 8–33 ms; plynulost subjektivně bez glitchů, parcely se dotáhnou až po ukončení tažení |
 
 `territories.php`: cca 0,7 KB, 50–70 ms.
 
