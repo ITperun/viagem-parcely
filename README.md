@@ -11,11 +11,17 @@ Vytvořeno jako technický úkol. Data pocházejí z ČÚZK (INSPIRE Cadastral P
 
 ## Požadavky
 
-- PHP 8.1+ s rozšířeními `pdo_sqlite` a `sqlite3`, např. na Linuxu `sudo apt install php8.1-sqlite3`
+- - PHP 8.1+ s rozšířeními `pdo_sqlite` a `sqlite3`. Na Linuxu: `sudo apt install php8.1-sqlite3`. Na Windows odkomentujte v `php.ini` řádky `extension=pdo_sqlite` a `extension=sqlite3`.
 - Pro převod dat: GDAL (`ogr2ogr`), např. přes OSGeo4W na Windows nebo `apt install gdal-bin` na Linuxu
 - Moderní prohlížeč (Chrome) s přístupem na internet
 
 ## Získání dat
+
+Nejprve vytvořte složku `data/` (v repozitáři není):
+
+   ```bash
+   mkdir data
+   ```
 
 Data nejsou v repozitáři. Stáhněte ZIP archivy pro čtyři KÚ z `https://services.cuzk.gov.cz/gml/inspire/cp`, rozbalte je a výsledné XML převeďte do GeoJSON:
 
@@ -43,7 +49,7 @@ Výsledné soubory uložte do složky `data/`.
    ```bash
       php scripts/import.php
    ```
-   Vytvoří `data/parcels.sqlite` s bounding boxy a geometrií každé parcely.
+   Vytvoří `data/parcels.sqlite` s bounding boxy a geometrií každé parcely. Při každém spuštění se databáze vytváří znovu, takže změna limitu nebo zaokrouhlení se projeví po novém importu.
 
 2. Spusťte vestavěný server z kořene projektu:
    ```bash

@@ -6,6 +6,11 @@ declare(strict_types=1);
 
 $root    = dirname(__DIR__);
 $dataDir = $root . '/data';
+
+if (!is_dir($dataDir)) {
+    mkdir($dataDir, 0777, true);
+}
+
 $dbPath  = $dataDir . '/parcels.sqlite';
 
 if (file_exists($dbPath)) {
