@@ -11,7 +11,7 @@ Vytvořeno jako technický úkol. Data pocházejí z ČÚZK (INSPIRE Cadastral P
 
 ## Požadavky
 
-- PHP 8.1+ s rozšířeními `pdo_sqlite` a `sqlite3`
+- PHP 8.1+ s rozšířeními `pdo_sqlite` a `sqlite3`, např. na Linuxu `sudo apt install php8.1-sqlite3`
 - Pro převod dat: GDAL (`ogr2ogr`), např. přes OSGeo4W na Windows nebo `apt install gdal-bin` na Linuxu
 - Moderní prohlížeč (Chrome) s přístupem na internet
 
@@ -19,26 +19,39 @@ Vytvořeno jako technický úkol. Data pocházejí z ČÚZK (INSPIRE Cadastral P
 
 Data nejsou v repozitáři. Stáhněte ZIP archivy pro čtyři KÚ z `https://services.cuzk.gov.cz/gml/inspire/cp`, rozbalte je a výsledné XML převeďte do GeoJSON:
 
-```bash
-ogr2ogr -f GeoJSON data/659541.geojson 659541.xml CadastralParcel -t_srs EPSG:4326
-```
+   ```bash
+   ogr2ogr -f GeoJSON data/659541.geojson 659541.xml CadastralParcel -t_srs EPSG:4326
+   ```
 
-Stejně pro 681679, 705128 a 752096. Výsledné soubory uložte do složky `data/`.
+   ```bash
+   ogr2ogr -f GeoJSON data/681679.geojson 681679.xml CadastralParcel -t_srs EPSG:4326
+   ```
+
+   ```bash
+   ogr2ogr -f GeoJSON data/705128.geojson 705128.xml CadastralParcel -t_srs EPSG:4326
+   ```
+
+   ```bash
+   ogr2ogr -f GeoJSON data/752096.geojson 752096.xml CadastralParcel -t_srs EPSG:4326
+   ```
+
+Výsledné soubory uložte do složky `data/`.
 
 ## Spuštění
 
 1. Naimportujte data do SQLite:
-```bash
-   php scripts/import.php
-```
+   ```bash
+      php scripts/import.php
+   ```
    Vytvoří `data/parcels.sqlite` s bounding boxy a geometrií každé parcely.
 
 2. Spusťte vestavěný server z kořene projektu:
-```bash
-   php -S localhost:8000
-```
+   ```bash
+      php -S localhost:8001
+   ```
 
-3. Otevřete v prohlížeči `http://localhost:8000/public/index.html`.
+3. Otevřete v prohlížeči `http://localhost:8001/public/index.html`.
+   Pokud databáze chybí, aplikace zobrazí chybovou zprávu. V tom případě nejdříve spusťte import (krok 1).
 
 ## Architektura
 
@@ -51,6 +64,9 @@ public/
 scripts/
   import.php          import GeoJSON → SQLite
 data/                 generovaná data, není v gitu
+src/
+  Database.php        připojování k SQLite
+  Response.php        JSON-chyby
 ```
 
 Data se čtou z SQLite. Frontend nikdy nedostane celý dataset najednou.
@@ -63,7 +79,7 @@ Data se čtou z SQLite. Frontend nikdy nedostane celý dataset najednou.
 
 **Bounding box v tabulce.** Dotaz vybere parcely, jejichž bbox protíná obrazovku. Parcely na okraji obrazovky tak nezmizí.
 
-**Limit počtu objektů v odpovědi.** Server vrací nejvýše `LIMIT` parcel. Pokud jich je víc, nevrací částečný výsledek, ale příznak `truncated: true`. Frontend pak zobrazí upozornění, aby uživatel přiblížil. Částečná data by vypadala jako chyba.
+**Limit počtu objektů v odpovědi.** Server vrací nejvýše `LIMIT` parcel. Pokud jich je víc, nevrací částečný výsledek, ale příznak `truncated: true`. Frontend pak zobrazí upozornění, aby uživatel přiblížil. Částečná data by vypadala jako chyba. Po změně limitu je nutné databázi znovu vytvořit.
 
 **Zaokrouhlení souřadnic na 6 desetinných míst.** Přesnost přibližně 0,1 m je pro mapu dostatečná. Velikost odpovědi se snížila.
 
@@ -82,7 +98,7 @@ Data se čtou z SQLite. Frontend nikdy nedostane celý dataset najednou.
 
 `territories.php`: cca 0,7 KB, 50–70 ms.
 
-## Co bych udělal s více časem
+## Co bych udělal dál
 
 - Zjednodušit geometrii podle zoomu, aby se na velkém měřítku posílaly méně detailní polygony.
 - Použít přesné hranice území z vrstvy `CadastralZoning` místo bodů.
